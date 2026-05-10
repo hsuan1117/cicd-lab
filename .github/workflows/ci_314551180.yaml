@@ -40,7 +40,7 @@ jobs:
         with:
           name: Vitest Tests
           path: reports/junit.xml
-          reporter: jest-junit
+          reporter: java-junit
           fail-on-error: false
 
       - name: Append summary to job page

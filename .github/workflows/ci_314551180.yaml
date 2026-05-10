@@ -1,0 +1,71 @@
+name: CI (314551180)
+
+on: push
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  ci:
+    name: Lint / Typecheck / Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Prettier check
+        run: npm run format:check
+
+      - name: Run tests (with JUnit report)
+        run: npx vitest run --reporter=default --reporter=junit --outputFile=reports/junit.xml
+
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Vitest Tests
+          path: reports/junit.xml
+          reporter: jest-junit
+          fail-on-error: false
+
+      - name: Append summary to job page
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Vitest Result"
+            if [ -f reports/junit.xml ]; then
+              tests=$(grep -oE 'tests="[0-9]+"' reports/junit.xml | head -1 | grep -oE '[0-9]+')
+              failures=$(grep -oE 'failures="[0-9]+"' reports/junit.xml | head -1 | grep -oE '[0-9]+')
+              errors=$(grep -oE 'errors="[0-9]+"' reports/junit.xml | head -1 | grep -oE '[0-9]+')
+              skipped=$(grep -oE 'skipped="[0-9]+"' reports/junit.xml | head -1 | grep -oE '[0-9]+')
+              echo "| Total | Failures | Errors | Skipped |"
+              echo "|-------|----------|--------|---------|"
+              echo "| ${tests:-0} | ${failures:-0} | ${errors:-0} | ${skipped:-0} |"
+            else
+              echo "_No JUnit report produced._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: reports/junit.xml
+          if-no-files-found: ignore
